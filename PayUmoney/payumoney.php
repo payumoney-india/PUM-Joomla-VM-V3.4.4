@@ -7,7 +7,7 @@ defined('_JEXEC') or die('Restricted access');
 if (!class_exists('vmPSPlugin'))
     require(JPATH_VM_PLUGINS . DS . 'vmpsplugin.php');
 
-class plgVmPaymentPayubiz extends vmPSPlugin {
+class plgVmPaymentPayumoney extends vmPSPlugin {
 
     // instance of class
     public static $_this = false;
@@ -117,13 +117,14 @@ class plgVmPaymentPayubiz extends vmPSPlugin {
 		    vmInfo(JText::_('VMPAYMENT_PAYU_MERCHANT_SALT_NOT_SET'));
 		    return false;
 		}
+		$udf5="Virtuemart_v_3.4";
 		$merchentkey = $method->merchantkey;
 		$mode = $method->mode;
 		$return_url = JROUTE::_(JURI::root() . 'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&on=' . $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id.'&DR={DR}');
 		$description = $method->description;
 		$ship_address = $address->address_1;
                 $txnid = $order['details']['BT']->order_number;
-                $hashSequence = $merchentkey ."|".$txnid."|".(int)$order['details']['BT']->order_total."|".JText::_('VMPAYMENT__ORDER_NUMBER') . ': ' . $order['details']['BT']->order_number."|".$order['details']['BT']->first_name."|".$order['details']['BT']->email."|".$udf1."|".$udf2."|".$udf3."|".$udf4."|".$udf5."||||||".$salt;
+                $hashSequence = $merchentkey ."|".$txnid."|".(int)$order['details']['BT']->order_total."|".JText::_('VMPAYMENT__ORDER_NUMBER') . ': ' . $order['details']['BT']->order_number."|".$order['details']['BT']->first_name."|".$order['details']['BT']->email."|||||".$udf5."||||||".$salt;
                 $secure_hash = strtolower(hash('sha512',$hashSequence));		
 		//echo "<pre>";print_r($method);echo "</pre>";
 		
@@ -162,7 +163,7 @@ class plgVmPaymentPayubiz extends vmPSPlugin {
                          "udf2" => "",
                          "udf3" => "",
                          "udf4" => "",
-                         "udf5" => "",
+                         "udf5" => $udf5,
 		);
 		
 		$dbValues['order_number'] = $order['details']['BT']->order_number;
@@ -232,72 +233,62 @@ class plgVmPaymentPayubiz extends vmPSPlugin {
 		    return '';
 		}
 		$payment_name = $this->renderPluginName($method);
+	    $response = array();
+        $response = $_POST;
 		
-   		//$dr = JRequest::getString('DR', 0);
-                $response = array();
-                $response = $_POST;
-                //print_r($_POST);die;
-                //print_r($response['status']);
-		//print_r($paymentTable);die;
-   /*if(!class_exists('Crypt_RC4'))
-		require(JPATH_ROOT .DS. 'plugins'.DS.'vmpayment'.DS.'ebs'.DS.'Rc43.php');
-			
-		$DR = preg_replace("/\s/","+",$dr);
-		$rc4 = new Crypt_RC4($method->secret_key);
-		$QueryString = base64_decode($DR);
-		$rc4->decrypt($QueryString);
-		$QueryString = split('&',$QueryString);
-		$response = array();
-		foreach($QueryString as $param){
-			$param = split('=',$param);
-			$response[$param[0]] = urldecode($param[1]);
-		}
-		if($response['ResponseCode']==0){
-			if($response['IsFlagged']=='NO'){
+		$keyString	=  	$method->merchantkey.'|'.$response['txnid'].'|'.$response['amount'].'|'.$response['productinfo'].'|'.$response['firstname'].'|'.$response['email'].'|||||'.$response['udf5'].'|||||';
+
+		$keyArray 	= 	explode("|",$keyString);
+		$reverseKeyArray 	= 	array_reverse($keyArray);
+		$reverseKeyString	=	implode("|",$reverseKeyArray);
+		$saltString     = $this->_getMerchantSalt($method).'|'.$response["status"].'|'.$reverseKeyString;
+		$sentHashString = strtolower(hash('sha512', $saltString));
+		$respSignature = $response['hash'];
+		//if(empty($respSignature)) $sentHashString=$respSignature; // to bypass signature match
+		//$response['reverseHash'] = $sentHashString;
+		if($respSignature == $sentHashString)
+		{
+    		if($response['status']=='success'){				
 				$new_status = $method->status_success;
+				// print_r($new_status);die;
+				$modelOrder = VmModel::getModel('orders');
+				$order['order_status'] = $new_status;
+		        //print_r($order);die;
+				$order['customer_notified'] = 1;
+				$order['comments'] = '';
+				$modelOrder->updateStatusForOneOrder($virtuemart_order_id, $order, true);
+       		    //print_r($_POST);die;
+       
+				$this->_storePayuInternalData($method, $response, $virtuemart_order_id,$paymentTable->payu_custom);	
+				$html = $this->_getPaymentResponseHtml($paymentTable, $payment_name, $response);
 			}
 			else{
-				$new_status = $method->status_pending;
+				$new_status = $method->status_canceled;	
+				$modelOrder = VmModel::getModel('orders');
+				$order['order_status'] = $new_status;
+		        //print_r($order);die;
+				$order['customer_notified'] = 1;
+				$order['comments'] = '';
+				$modelOrder->updateStatusForOneOrder($virtuemart_order_id, $order, true);
+       		    //print_r($_POST);die;
+       
+				$this->_storePayuInternalData($method, $response, $virtuemart_order_id,$paymentTable->payu_custom);	
+				$cancel_return = JROUTE::_(JURI::root() . 'index.php?option=com_virtuemart&view=pluginresponse&task=pluginUserPaymentCancel&on=' .$order_number.'&pm='.	$virtuemart_paymentmethod_id);
+				$html= ' <script type="text/javascript">';
+				$html.= 'window.location = "'.$cancel_return.'"';
+				$html.= ' </script>';
+
 			}
+            JRequest::setVar('html', $html);
 		}
-		else{
-			$new_status = $method->status_canceled;
-		}	*///print_r($paymentTable->response_code);
-                                          //print_r($paymentTable->is_flagged);	
-		if($response['status']=='success'){
-			if($response['mihpayid']!=''){
-				$new_status = $method->status_success;
-			}
-			else{
-				$new_status = $method->status_pending;
-			}
-		}
-		else{
-			$new_status = $method->status_canceled;
-		}
-                
-               // print_r($new_status);die;
-		$modelOrder = VmModel::getModel('orders');
-		$order['order_status'] = $new_status;
-                                //print_r($order);die;
-		$order['customer_notified'] = 1;
-		$order['comments'] = '';
-		$modelOrder->updateStatusForOneOrder($virtuemart_order_id, $order, true);
-                //print_r($_POST);die;
-        
-		$this->_storePayuInternalData($method, $response, $virtuemart_order_id,$paymentTable->payu_custom);
-		if($response['status']=='success'){		
-			$html = $this->_getPaymentResponseHtml($paymentTable, $payment_name, $response);
-		}
-		else{
-			$cancel_return = JROUTE::_(JURI::root() . 'index.php?option=com_virtuemart&view=pluginresponse&task=pluginUserPaymentCancel&on=' .$order_number.'&pm='.$virtuemart_paymentmethod_id);
+		else {
+			$new_status = $method->status_canceled;	
+			$cancel_return = JROUTE::_(JURI::root() . 'index.php?option=com_virtuemart&view=pluginresponse&task=pluginUserPaymentCancel&on=' .$order_number.'&pm='.	$virtuemart_paymentmethod_id);
 			$html= ' <script type="text/javascript">';
 			$html.= 'window.location = "'.$cancel_return.'"';
 			$html.= ' </script>';
 			JRequest::setVar('html', $html);
 		}
-	
-		//We delete the old stuff
 		// get the correct cart / session
 		$cart = VirtueMartCart::getCart();
 		$cart->emptyCart();
@@ -333,7 +324,7 @@ class plgVmPaymentPayubiz extends vmPSPlugin {
 		$response_fields['mode'] = ucfirst($response['mode']);
 		$response_fields['mihpayid'] = $response['mihpayid'];
 		$response_fields['productinfo'] = $response['productinfo'];
-		$response_fields['txnid'] = $response['txnid'];
+		$response_fields['txnid'] = $response['txnid'];		
   		
 		$this->storePSPluginInternalData($response_fields, 'virtuemart_order_id', true);
     }
@@ -416,7 +407,9 @@ class plgVmPaymentPayubiz extends vmPSPlugin {
     }
     
 	function _getPAYUUrlHttps($method) {
-		$url = 'test.payu.in/_payment';
+		$url = 'sandboxsecure.payu.in/_payment';
+		if($method->mode == 'LIVE')
+			$url = 'secure.payu.in/_payment';
 		return $url;
     }   
 	

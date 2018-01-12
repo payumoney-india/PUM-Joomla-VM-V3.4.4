@@ -1,24 +1,24 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <extension version="2.5" type="plugin" group="vmpayment" >
-    <name>VM - Payment, PAYUBIZ</name>
+    <name>VM - Payment - PayUmoney</name>
     <creationDate>April 2012</creationDate>
-    <author>Ayush Mittal - PayU India</author>
-    <copyright>Copyright (C) 2012 PAYU Team. All rights reserved.</copyright>
+    <author>PayUmoney.com</author>
+    <copyright>Copyright (C) 2018 PayUmoney Team. All rights reserved.</copyright>
     <license>http://www.gnu.org/licenses/gpl-3.0.html GNU/GPL</license>
-    <version>1.0.0</version>
-     <description><![CDATA[<a href="http://payu.in" target="_blank">PAYU</a> is a popular
+    <version>1.0.1</version>
+     <description><![CDATA[<a href="http://payumoney.com" target="_blank">PayUmoney</a> is a popular
 	payment provider. ]]>
     </description>
     <files>
-	<filename plugin="payubiz">payubiz.php</filename>
+	<filename plugin="payumoney">payumoney.php</filename>
         
 	</files>
 	
 	<media folder="images" destination="../images/stories/virtuemart/payment">
-	<filename>payu.jpg</filename>
+	<filename>PayUmoney-logo.png</filename>
     </media>
     <languages>
-	<language tag="en-GB">en-GB.plg_vmpayment_payubiz.ini</language>
+	<language tag="en-GB">en-GB.plg_vmpayment_payumoney.ini</language>
     </languages>    
     <vmconfig>
         <fields name="params">	
